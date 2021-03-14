@@ -4,17 +4,13 @@ import com.android.build.gradle.internal.CompileOptions
 import com.android.build.gradle.internal.dsl.BuildType
 import com.android.build.gradle.internal.dsl.DefaultConfig
 import tools.forma.android.config.FormaConfiguration
+import tools.forma.android.config.BuildConfiguration
+import tools.forma.android.config.BuildFields
+import tools.forma.android.config.Debug
+import tools.forma.android.config.Release
+import tools.forma.android.config.Custom
+import tools.forma.android.config.None
 import org.gradle.api.NamedDomainObjectContainer
-
-data class BuildConfiguration(
-    val buildTypes: Map<String, BuildType.() -> Unit> = emptyMap()
-)
-
-data class BuildTypeConfiguration(
-    val name: String,
-    val useDefaultMinificationRules: Boolean = false,
-    val minificationRulesFileName: String = "proguard-rules.pro"
-)
 
 internal fun DefaultConfig.applyFrom(
     formaConfiguration: FormaConfiguration,
@@ -40,7 +36,49 @@ internal fun CompileOptions.applyFrom(config: FormaConfiguration) {
 }
 
 internal fun NamedDomainObjectContainer<BuildType>.applyFrom(config: BuildConfiguration) {
-    config.buildTypes.forEach { (name, lambda) ->
-        lambda(getByName(name))
+    when (config) {
+        is Debug -> getByName("debug") {
+            isMinifyEnabled = false
+            isShrinkResources = false
+            isDebuggable = true
+            isTestCoverageEnabled = true
+            applyFrom(config.buildFields)
+            config.typeCustomizer(this)
+        }
+
+        is Release -> getByName("release") {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            isDebuggable = config.debuggable
+            isTestCoverageEnabled = false
+
+            check(config.proguardFiles.isNotEmpty()) {
+                "BuildType ${config.typeName}: empty rules files. " +
+                "Use default files `proguard-android-optimize.txt` or `proguard-android.txt`"
+            }
+            for (file in config.proguardFiles) {
+                proguardFile(file)
+            }
+
+            applyFrom(config.buildFields)
+            config.typeCustomizer(this)
+        }
+
+        is Custom -> getByName(config.typeName) {
+            config.typeCustomizer(this)
+        }
+
+        is None -> return
+    }
+}
+
+private fun BuildType.applyFrom(fields: BuildFields) {
+    fields.values.forEach { (name, value) ->
+        when (value) {
+            is String -> buildConfigField("String", name, value)
+            is Int -> buildConfigField("int", name, value.toString())
+            is Boolean -> buildConfigField("boolean", name, value.toString())
+            else -> throw IllegalArgumentException("Unsupported build config field: name=$name, type=$value")
+        }
     }
 }

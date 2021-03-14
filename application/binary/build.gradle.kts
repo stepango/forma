@@ -1,5 +1,8 @@
+import tools.forma.android.config.Debug
+import tools.forma.android.config.buildFields
+
 androidBinary(
-    packageName = "com.stepango.blockme.app",
+    packageName = "com.stepango.blockme.app.debug",
     owner = Teams.core,
     dependencies = deps(
         target(":root-app"),
@@ -24,6 +27,10 @@ androidBinary(
         target(":common:util-native"),
         target(":core:mvvm:library"),
         target(":core:di:library")
+    ),
+    buildConfiguration = Debug(
+        buildFields = buildFields()
+            .add("ENABLE_CRASHLYTICS", false)
     )
 )
 // TODO: enable when create crashlytics project
